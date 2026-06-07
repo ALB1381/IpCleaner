@@ -1,0 +1,1 @@
+Question: How can I retrieve the domain name of a CDN IP address? I need to implement this feature in IpCleaners/Components/Pages/Home.razor, but I am struggling to find a working approach for reverse IP lookups on CDNs.
