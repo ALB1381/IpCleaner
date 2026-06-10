@@ -5,6 +5,7 @@
 @using Microsoft.AspNetCore.Components.Web
 @using System.Net.Security
 @using System.Security.Cryptography.X509Certificates
+@using System.Net
 
 <PageTitle>Home</PageTitle>
 
@@ -24,18 +25,27 @@ Check the Ip's
 </div>
 
 <div class="row">
+    <h1>Pre</h1>
+    <p>
+        @((MarkupString)PreResult)
+    </p>
+</div>
+
+<div class="row">
     <p>
         @((MarkupString)Result)
     </p>
 </div>
+
 
 @code {
     public string? Ips { get; set; }
     public int Port { get; set; } = 443;
     public int TimeOut { get; set; } = 500;
     public string? Result { get; set; }
+    public string? PreResult { get; set; }
 
-    //This method will check the ping of one Ip
+
     private static async Task<long> TcpPingAsync(string ipAddress, int port, int timeoutMs)
     {
         var stopwatch = new Stopwatch();
@@ -56,33 +66,47 @@ Check the Ip's
         catch
         {
 
-
         }
         return -1;
     }
 
-    //This method will handle the textArea inputs and split and insert all the ips to be checked.
-    private async Task<string> HandleSubmit()
+
+    private async Task HandleSubmit()
     {
         Result = "";
+
+        if (string.IsNullOrWhiteSpace(Ips)) return;
+
         List<string> ips = Ips.Split(new[] { ' ', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).ToList();
-        long ping = -1;
-        string Domain = "";
+
         foreach (var item in ips)
         {
-            ping = await TcpPingAsync(item, Port, TimeOut);
-            Result = Result + $"\n <br /> {item}  ----->  {ping}";
+            long ping = await TcpPingAsync(item, Port, TimeOut);
+            Result += $"\n <br /> {item}  ----->  {ping}";
+
             if (ping != -1)
             {
-                Domain = await GetDomainFromIpAsync(item);
-                if (Domain == "No Domain Found")
+                string domain = await GetDomainFromIpAsync(item);
+
+                if (domain == "No Domain Found")
                 {
-                    //***Help Question: Now  it is probably a CDN Ip Now how can i found the domain name. Is there any way?***
+                    try
+                    {
+                        var hostEntry = await Dns.GetHostEntryAsync(item);
+                        Result += " /--/ " + hostEntry.HostName; 
+                    }
+                    catch (SocketException)
+                    {
+                       
+                    }
                 }
-                Result = Result + " /--/ " + Domain;
+                else
+                {
+                    Result += " /--/ " + domain;
+                }
             }
+            StateHasChanged();
         }
-        return Result;
     }
 
     private static async Task<string> GetDomainFromIpAsync(string ipAddress)
@@ -95,13 +119,14 @@ Check the Ip's
             using var sslStream = new SslStream(client.GetStream(), false,
                 (sender, cert, chain, errors) => true);
 
+          
             await sslStream.AuthenticateAsClientAsync(ipAddress);
 
             var serverCertificate = sslStream.RemoteCertificate;
             if (serverCertificate != null)
             {
-               
                 var cert2 = new X509Certificate2(serverCertificate);
+              
                 return cert2.Subject;
             }
         }
